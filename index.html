@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,height=device-height,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <title>Centipede — pezzaliAPP (PWA)</title>
+  <meta name="description" content="Tributo giocabile al classico arcade: centopiedi segmentati, funghi, ragno e blaster in basso. PWA offline-ready.">
+  <meta name="theme-color" content="#0e1117">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="container">
+    <h1>🕹️ Centipede — <small>Tributo PWA (Atari, 1981)</small></h1>
+  </header>
+
+  <main class="container card" id="stageWrap">
+    <div id="hud">
+      <span class="hchip">Punteggio: <b id="score">0</b></span>
+      <span class="hchip">Vite: <b id="lives">3</b></span>
+      <span class="hchip">Livello: <b id="level">1</b></span>
+      <button id="btnPause" class="btn btn--pause" aria-label="Pausa (P)">Pausa</button>
+      <button id="btnRestart" class="btn" aria-label="Restart (R)">Restart</button>
+    </div>
+
+    <canvas id="game" width="360" height="540" aria-label="Area di gioco Centipede"></canvas>
+
+    <div id="touchBar">
+      <button id="btnLeft" class="btn" aria-label="Sinistra (A/◀)">◀</button>
+      <button id="btnFire" class="btn btn--fire" aria-label="Fuoco (Barra spaziatrice/Invio)">FIRE</button>
+      <button id="btnRight" class="btn" aria-label="Destra (D/▶)">▶</button>
+    </div>
+
+    <div class="notice readme">
+      <p><b>Comandi</b> — Tastiera: <kbd>A</kbd>/<kbd>◀</kbd> e <kbd>D</kbd>/<kbd>▶</kbd> per muoverti, <kbd>Spazio</kbd> o <kbd>Invio</kbd> per sparare, <kbd>P</kbd> per pausa, <kbd>R</kbd> per restart. Su mobile usa i tre pulsanti.</p>
+      <p><b>Nota legale</b> — Questo è un <em>omaggio didattico</em> al gioco originale di Atari (<b>Centipede</b>, 1981). Marchi e IP appartengono ai rispettivi titolari.</p>
+    </div>
+  </main>
+
+  <footer>
+    © 2025 pezzaliAPP — PWA • Offline-ready • MIT
+  </footer>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js'));
+    }
+  </script>
+  <script src="app.js"></script>
+</body>
+</html>
