@@ -28,6 +28,13 @@ Non è un porting ufficiale: è un omaggio tecnico-didattico.
 
 ---
 
+## 🔊 Audio
+Effetti sonori integrati con **WebAudio** (niente file esterni):  
+- Sparo, colpo su fungo, colpo su segmento/testa, bonus ragno, perdita vita, *level up*.
+> Su iOS l’audio parte dopo il primo tocco/tasto (sblocco richiesto dal sistema).
+
+---
+
 ## 📲 PWA
 Installabile su Android / iOS / macOS / Windows (**Aggiungi alla Home** / **Installa App**).  
 Funziona **offline** grazie al service worker.

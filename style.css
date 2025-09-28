@@ -11,7 +11,7 @@ small{color:var(--muted)}
 .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden}
 #hud{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:8px;border-bottom:1px solid var(--border)}
 .hchip{background:var(--btn);padding:6px 10px;border-radius:999px;border:1px solid var(--border);font-weight:600}
-#stageWrap{position:relative;background:var(--bg)}
+#stageWrap{position:relative;background:var(--bg')}
 #game{display:block;width:100%;height:auto;image-rendering:pixelated;touch-action:none}
 #touchBar{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:10px;border-top:1px solid var(--border);background:var(--panel)}
 .btn{appearance:none;border:1px solid var(--border);background:var(--btn);padding:12px;border-radius:10px;color:var(--text);font-weight:700}

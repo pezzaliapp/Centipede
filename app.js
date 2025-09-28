@@ -28,6 +28,49 @@
   window.addEventListener('orientationchange', fitCanvas);
   fitCanvas();
 
+  // ===== Audio (WebAudio minimal) =====
+  const Audio = (()=>{
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    let ctx, vol;
+    function ensure(){
+      if (!ctx){ ctx = new Ctx(); vol = ctx.createGain(); vol.gain.value = 0.12; vol.connect(ctx.destination); }
+      return ctx;
+    }
+    function beep({f=440, t=0.08, type='square', slide=0, decay=0.002, startVol=0.85}){
+      const c = ensure();
+      const o = c.createOscillator();
+      const g = c.createGain();
+      o.type = type;
+      o.frequency.setValueAtTime(f, c.currentTime);
+      if (slide){ o.frequency.exponentialRampToValueAtTime(Math.max(40,f*slide), c.currentTime + t); }
+      g.gain.setValueAtTime(startVol, c.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + t - decay);
+      o.connect(g); g.connect(vol);
+      o.start(); o.stop(c.currentTime + t);
+    }
+    function noise({t=0.05, bp=1500}){
+      const c = ensure();
+      const bufferSize = Math.floor(c.sampleRate * t);
+      const buffer = c.createBuffer(1, bufferSize, c.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i=0;i<bufferSize;i++){ data[i] = Math.random()*2-1; }
+      const src = c.createBufferSource(); src.buffer = buffer;
+      const biquad = c.createBiquadFilter(); biquad.type='bandpass'; biquad.frequency.value=bp; biquad.Q.value=0.5;
+      const g = c.createGain(); g.gain.value = 0.25;
+      src.connect(biquad); biquad.connect(g); g.connect(vol);
+      src.start(); src.stop(c.currentTime+t);
+    }
+    return {
+      unlock(){ ensure(); },
+      shoot(){ beep({f:880, t:0.06, type:'square'}); },
+      hitShroom(){ beep({f:220, t:0.04, type:'triangle'}); },
+      hitSegment(head=false){ head ? beep({f:660, t:0.08, type:'sawtooth'}) : beep({f:520, t:0.06, type:'sawtooth'}); },
+      bonusSpider(){ beep({f:900, t:0.06, type:'square'}); beep({f:1200, t:0.08, type:'square'}); },
+      lose(){ noise({t:0.22, bp:500}); beep({f:180, t:0.2, type:'triangle', slide:0.4}); },
+      levelUp(){ beep({f:600, t:0.08}); beep({f:760, t:0.08}); beep({f:920, t:0.1}); }
+    };
+  })();
+
   // ===== Grid & Helpers =====
   const CELL = 12;               // logical cell size
   const COLS = Math.floor(cvs.width / CELL); // 30
@@ -61,7 +104,6 @@
   function key(x,y){ return `${x},${y}`; }
 
   function addShroom(cx, cy, hp=4) {
-    // avoid bottom 3 rows (player zone)
     if (cy > ROWS-4) return;
     const k = key(cx,cy);
     STATE.shrooms.set(k, clamp(hp,1,4));
@@ -97,29 +139,24 @@
   }
 
   function splitCentipede(centi, hitIndex){
-    // Replace hit segment by mushroom
     const seg = centi[hitIndex];
     addShroom(seg.x, seg.y, 4);
-    // Create tail part if exists
     const tail = centi.slice(hitIndex+1);
     const headPart = centi.slice(0, hitIndex);
     if (headPart.length>0) headPart[0].head = true;
     if (tail.length>0){
       tail[0].head = true;
-      // keep same dir for both parts
       STATE.centipedes.push(tail);
     }
-    // Replace current centipede with headPart (may be empty -> remove by caller)
     return headPart;
   }
 
   function spawnSpider(){
-    // Spider roams near bottom 1/3
     STATE.spider = {
-      x: rand(0, COLS-1), y: rand(ROWS-12, ROWS-5),
-      vx: (Math.random()<0.5?-1:1)* (60 + rand(0,40)), // px/s
-      vy: (Math.random()<0.5?-1:1)* (60 + rand(0,40)), // px/s
-      r: CELL*0.9, alive:true, timer: 12000 // ms lifetime
+      x: rand(0, COLS-1)*CELL, y: rand((ROWS-12)*CELL, (ROWS-5)*CELL),
+      vx: (Math.random()<0.5?-1:1)* (60 + rand(0,40)),
+      vy: (Math.random()<0.5?-1:1)* (60 + rand(0,40)),
+      r: CELL*0.9, alive:true, timer: 12000
     };
   }
 
@@ -136,11 +173,11 @@
   function drawBG(){
     ctx.fillStyle = '#0e1117';
     ctx.fillRect(0,0,cvs.width,cvs.height);
-    // faint grid dots
     ctx.fillStyle = '#161a22';
+    const ROWS = Math.floor(cvs.height/12), COLS = Math.floor(cvs.width/12);
     for (let y=0;y<ROWS;y++){
       for (let x=0;x<COLS;x++){
-        if (((x+y)&7)===0) ctx.fillRect(x*CELL, y*CELL, 1,1);
+        if (((x+y)&7)===0) ctx.fillRect(x*12, y*12, 1,1);
       }
     }
   }
@@ -159,24 +196,23 @@
   function drawShrooms(){
     for (const [k,hp] of STATE.shrooms.entries()){
       const [cx,cy] = k.split(',').map(Number);
-      const x = cx*CELL, y = cy*CELL;
+      const x = cx*12, y = cy*12;
       const c = ['#2a3a2a','#3b5f3b','#4f8a4f','#6cd061'][hp-1] || '#6cd061';
       ctx.fillStyle = c;
-      ctx.fillRect(x+2, y+2, CELL-4, CELL-4);
+      ctx.fillRect(x+2, y+2, 12-4, 12-4);
       ctx.fillStyle = '#233';
-      ctx.fillRect(x+4, y+4, CELL-8, CELL-8);
+      ctx.fillRect(x+4, y+4, 12-8, 12-8);
     }
   }
   function drawCentipedes(){
     for (const segs of STATE.centipedes){
       for (let i=segs.length-1;i>=0;i--){
         const s = segs[i];
-        const x = s.x*CELL, y = s.y*CELL;
+        const x = s.x*12, y = s.y*12;
         ctx.fillStyle = i===0 ? '#ffcc66' : '#6cd061';
-        ctx.fillRect(x+2, y+2, CELL-4, CELL-4);
-        // legs
+        ctx.fillRect(x+2, y+2, 12-4, 12-4);
         ctx.fillStyle = '#2a3040';
-        ctx.fillRect(x+1, y+CELL-3, CELL-2, 2);
+        ctx.fillRect(x+1, y+12-3, 12-2, 2);
       }
     }
   }
@@ -187,7 +223,6 @@
     ctx.beginPath();
     ctx.arc(sp.x, sp.y, sp.r*0.5, 0, Math.PI*2);
     ctx.fill();
-    // legs
     ctx.strokeStyle = '#652a2a';
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -199,7 +234,7 @@
   // ===== Update =====
   let last = performance.now();
   function loop(now){
-    const dt = Math.min(48, now-last); // ms
+    const dt = Math.min(48, now-last);
     last = now;
     if (STATE.running) update(dt);
     render();
@@ -207,43 +242,41 @@
   }
 
   function update(dt){
-    // Player move
     const dx =
       (STATE.inputs.left ? -1 : 0) +
       (STATE.inputs.right ? +1 : 0);
     player.x += dx * player.speed * (dt/1000);
     player.x = clamp(player.x, 0, cvs.width-player.w);
 
-    // Fire
     player.fireCooldown -= dt;
     if ((STATE.inputs.fire) && player.fireCooldown<=0){
       STATE.bullets.push({x: player.x + player.w/2 - 1, y: player.y-8, vy: -420});
       player.fireCooldown = player.fireDelay;
+      Audio.shoot();
     }
 
-    // Bullets
     for (let i=STATE.bullets.length-1;i>=0;i--){
       const b = STATE.bullets[i];
       b.y += b.vy * (dt/1000);
       if (b.y < -12) { STATE.bullets.splice(i,1); continue; }
 
-      // Bullet vs shrooms
-      const cx = Math.floor((b.x)/CELL), cy = Math.floor(b.y/CELL);
+      const cx = Math.floor((b.x)/12), cy = Math.floor(b.y/12);
       if (damageShroom(cx,cy)){
         STATE.score += 1;
+        Audio.hitShroom();
         STATE.bullets.splice(i,1);
         continue;
       }
 
-      // Bullet vs centipedes
       let hit = false;
       for (let c=STATE.centipedes.length-1;c>=0; c--){
         const segs = STATE.centipedes[c];
         for (let s=0; s<segs.length; s++){
           const seg = segs[s];
-          const rx = seg.x*CELL, ry = seg.y*CELL;
-          if (b.x >= rx && b.x <= rx+CELL && b.y >= ry && b.y <= ry+CELL){
+          const rx = seg.x*12, ry = seg.y*12;
+          if (b.x >= rx && b.x <= rx+12 && b.y >= ry && b.y <= ry+12){
             STATE.score += (s===0?10:5);
+            Audio.hitSegment(s===0);
             const headPart = splitCentipede(segs, s);
             if (headPart.length>0) STATE.centipedes[c] = headPart; else STATE.centipedes.splice(c,1);
             STATE.bullets.splice(i,1);
@@ -255,7 +288,6 @@
       }
     }
 
-    // Centipede movement (grid-step with speed in cells/s)
     for (let ci=STATE.centipedes.length-1; ci>=0; ci--){
       const segs = STATE.centipedes[ci];
       const speed = segs[0]?.speed || 6;
@@ -263,18 +295,16 @@
         segs[s].moveTimer = (segs[s].moveTimer||0) + dt;
       }
       if ((segs[0].moveTimer||0) >= 1000/speed){
-        // move head
         for (let s=0; s<segs.length; s++) segs[s].moveTimer = 0;
         const head = segs[0];
         let nx = head.x + head.dir;
         let ny = head.y;
-        const blocked = (nx<0 || nx>=COLS) || STATE.shrooms.has(key(nx,ny));
+        const blocked = (nx<0 || nx>=Math.floor(cvs.width/12)) || STATE.shrooms.has(`${nx},${ny}`);
         if (blocked){
           head.dir *= -1;
           ny = head.y + 1;
-          nx = clamp(head.x + head.dir, 0, COLS-1);
+          nx = clamp(head.x + head.dir, 0, Math.floor(cvs.width/12)-1);
         }
-        // shift body
         for (let s=segs.length-1; s>0; s--){
           segs[s].x = segs[s-1].x;
           segs[s].y = segs[s-1].y;
@@ -282,15 +312,13 @@
         }
         head.x = nx; head.y = ny;
 
-        // reached player zone?
-        if (head.y >= ROWS-2){
+        if (head.y >= Math.floor(cvs.height/12)-2){
           loseLife();
           break;
         }
       }
     }
 
-    // Spider
     if (!STATE.spider && Math.random()<0.003) spawnSpider();
     if (STATE.spider){
       const sp = STATE.spider;
@@ -298,20 +326,19 @@
       sp.x += sp.vx * (dt/1000);
       sp.y += sp.vy * (dt/1000);
       if (sp.x<10 || sp.x>cvs.width-10) sp.vx*=-1;
-      if (sp.y<ROWS*CELL*0.65 || sp.y>cvs.height-10) sp.vy*=-1;
+      if (sp.y<Math.floor(cvs.height*0.65) || sp.y>cvs.height-10) sp.vy*=-1;
       if (sp.timer<=0) STATE.spider=null;
 
-      // bullet vs spider
       for (let i=STATE.bullets.length-1;i>=0;i--){
         const b = STATE.bullets[i];
         const dx = b.x - sp.x, dy = b.y - sp.y;
         if (dx*dx+dy*dy <= (sp.r*0.5)**2){
           STATE.score += 100;
+          Audio.bonusSpider();
           STATE.bullets.splice(i,1); STATE.spider=null; break;
         }
       }
 
-      // spider vs player
       if (sp){
         const px = player.x+player.w/2, py = player.y+player.h/2;
         const dx = px - sp.x, dy = py - sp.y;
@@ -319,29 +346,28 @@
       }
     }
 
-    // Win wave
     if (STATE.centipedes.length===0){
       STATE.level += 1;
+      Audio.levelUp();
       UI.level.textContent = STATE.level;
       reset(STATE.level);
       STATE.score += 200;
     }
 
-    // Update HUD
     UI.score.textContent = STATE.score;
     UI.lives.textContent = STATE.lives;
   }
 
   function loseLife(){
     STATE.lives -= 1;
+    Audio.lose();
     UI.lives.textContent = STATE.lives;
     if (STATE.lives <= 0){
       STATE.running = false;
       toast('GAME OVER — premi R per ripartire');
     } else {
-      // Safe respawn: clear bullets, move player center, reduce centipede to top
       STATE.bullets.length = 0;
-      player.x = (COLS*CELL)/2 - player.w/2;
+      player.x = (Math.floor(cvs.width/12)*12)/2 - player.w/2;
       for (const segs of STATE.centipedes){
         for (const s of segs){ s.y = Math.max(0, s.y-3); }
       }
@@ -349,7 +375,6 @@
     }
   }
 
-  // ===== Render =====
   function render(){
     drawBG();
     drawShrooms();
@@ -359,7 +384,6 @@
     drawPlayer();
   }
 
-  // ===== UI / Input =====
   const keys = {};
   function setFire(v){ STATE.inputs.fire = v; }
   function setLeft(v){ STATE.inputs.left = v; }
@@ -370,8 +394,8 @@
     if (e.code==='ArrowLeft' || e.code==='KeyA') setLeft(true);
     if (e.code==='ArrowRight' || e.code==='KeyD') setRight(true);
     if (e.code==='Space' || e.code==='Enter') setFire(true);
-    if (e.code==='KeyP'){ STATE.running = !STATE.running; toast(STATE.running?'▶ Riprendi':'⏸ Pausa'); }
-    if (e.code==='KeyR'){ startGame(); }
+    if (e.code==='KeyP'){ Audio.unlock(); STATE.running = !STATE.running; toast(STATE.running?'▶ Riprendi':'⏸ Pausa'); }
+    if (e.code==='KeyR'){ Audio.unlock(); startGame(); }
   });
   window.addEventListener('keyup', e => {
     keys[e.code]=false;
@@ -380,17 +404,16 @@
     if (e.code==='Space' || e.code==='Enter') setFire(false);
   });
 
-  UI.btnLeft.addEventListener('touchstart', e=>{e.preventDefault(); setLeft(true);});
+  UI.btnLeft.addEventListener('touchstart', e=>{e.preventDefault(); Audio.unlock(); setLeft(true);});
   UI.btnLeft.addEventListener('touchend', e=>{e.preventDefault(); setLeft(false);});
-  UI.btnRight.addEventListener('touchstart', e=>{e.preventDefault(); setRight(true);});
+  UI.btnRight.addEventListener('touchstart', e=>{e.preventDefault(); Audio.unlock(); setRight(true);});
   UI.btnRight.addEventListener('touchend', e=>{e.preventDefault(); setRight(false);});
-  UI.btnFire.addEventListener('touchstart', e=>{e.preventDefault(); setFire(true);});
+  UI.btnFire.addEventListener('touchstart', e=>{e.preventDefault(); Audio.unlock(); setFire(true);});
   UI.btnFire.addEventListener('touchend', e=>{e.preventDefault(); setFire(false);});
 
-  UI.btnPause.addEventListener('click', ()=>{ STATE.running = !STATE.running; toast(STATE.running?'▶ Riprendi':'⏸ Pausa'); });
-  UI.btnRestart.addEventListener('click', ()=> startGame());
+  UI.btnPause.addEventListener('click', ()=>{ Audio.unlock(); STATE.running = !STATE.running; toast(STATE.running?'▶ Riprendi':'⏸ Pausa'); });
+  UI.btnRestart.addEventListener('click', ()=> { Audio.unlock(); startGame(); });
 
-  // Simple toast
   let toastTimer=0;
   function toast(msg){
     let el = document.getElementById('toast');
@@ -426,7 +449,9 @@
     toast('Pronto! Usa ◀ ▶ e spara');
   }
 
-  // Seed and go
+  const unlockers = ['touchstart','mousedown','keydown'];
+  unlockers.forEach(ev => window.addEventListener(ev, ()=>Audio.unlock(), {once:true}));
+
   startGame();
   requestAnimationFrame(loop);
 })();

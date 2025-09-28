@@ -1,4 +1,4 @@
-const CACHE = 'centipede-pwa-v1';
+const CACHE = 'centipede-pwa-v2';
 const ASSETS = [
   './',
   './index.html',
